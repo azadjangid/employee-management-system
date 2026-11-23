@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Outlet } from "react-router-dom";
 
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
+import { LoadingState } from "../common/States";
 
 function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -20,7 +21,9 @@ function DashboardLayout() {
         />
 
         <main className="p-4 sm:p-6">
-          <Outlet />
+          <Suspense fallback={<LoadingState label="Loading page..." />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

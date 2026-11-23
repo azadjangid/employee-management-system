@@ -12,22 +12,63 @@ import {
   Lock,
   Eye,
   EyeOff,
+  Loader2,
 } from "lucide-react";
 
+import { api } from "../lib/api";
+import { useApiQuery, useMutation } from "../hooks/useApi";
+import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
+import { ErrorState, LoadingState } from "../components/common/States";
+
+/** Map the API's employee record to the form fields this page edits. */
+function toForm(employee) {
+  return {
+    firstName: employee.firstName ?? "",
+    lastName: employee.lastName ?? "",
+    email: employee.email ?? "",
+    phone: employee.phone ?? "",
+    department: employee.department ?? "",
+    designation: employee.designation ?? "",
+    joiningDate: employee.joiningDate ?? "",
+    location: employee.location ?? "",
+    employeeId: employee.employeeCode,
+    status: employee.status,
+  };
+}
+
 function Profile() {
+  const { data, loading, error, reload } = useApiQuery(
+    (signal) => api.get("/profile", undefined, { signal }),
+    []
+  );
+
+  if (loading && !data) {
+    return <LoadingState label="Loading your profile..." className="py-32" />;
+  }
+  if (error && !data) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <ErrorState error={error} onRetry={reload} />
+      </div>
+    );
+  }
+  return <ProfileContent employee={data} />;
+}
+
+function ProfileContent({ employee }) {
+  const { setUser } = useAuth();
+  const toast = useToast();
   const [isEditing, setIsEditing] = useState(false);
 
-  const [profile, setProfile] = useState({
-    firstName: "Admin",
-    lastName: "User",
-    email: "admin@employeehub.com",
-    phone: "+91 98765 43210",
-    department: "Administration",
-    designation: "HR Administrator",
-    joiningDate: "2024-01-15",
-    location: "Pune, Maharashtra",
-    employeeId: "EMP001",
-  });
+  // `saved` is the last version from the server; `profile` holds unsaved edits.
+  const [saved, setSaved] = useState(() => toForm(employee));
+  const [profile, setProfile] = useState(saved);
+  const [profileError, setProfileError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+
+  const saveProfile = useMutation((body) => api.put("/profile", body));
+  const changePassword = useMutation((body) => api.post("/auth/change-password", body));
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
@@ -59,12 +100,46 @@ function Profile() {
     }));
   };
 
-  const handleSaveProfile = (e) => {
-    e.preventDefault();
+  const startEditing = () => {
+    setProfile(saved);
+    setProfileError("");
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setProfile(saved);
+    setProfileError("");
     setIsEditing(false);
   };
 
-  const handleChangePassword = (e) => {
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    if (!profile.firstName.trim()) {
+      setProfileError("First name is required.");
+      return;
+    }
+    setProfileError("");
+    try {
+      const res = await saveProfile.run({
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        email: profile.email,
+        phone: profile.phone || null,
+        location: profile.location || null,
+      });
+      const fresh = toForm(res.data);
+      setSaved(fresh);
+      setProfile(fresh);
+      // Keep the name in the navbar / sidebar in sync.
+      setUser((u) => ({ ...u, ...res.data }));
+      setIsEditing(false);
+      toast.success("Profile updated");
+    } catch (err) {
+      setProfileError(err.message);
+    }
+  };
+
+  const handleChangePassword = async (e) => {
     e.preventDefault();
 
     if (
@@ -72,25 +147,35 @@ function Profile() {
       !passwordData.newPassword ||
       !passwordData.confirmPassword
     ) {
-      alert("Please fill all password fields.");
+      setPasswordError("Please fill all password fields.");
       return;
     }
 
-    if (
-      passwordData.newPassword !==
-      passwordData.confirmPassword
-    ) {
-      alert("New password and confirm password do not match.");
+    if (passwordData.newPassword.length < 8) {
+      setPasswordError("New password must be at least 8 characters.");
       return;
     }
 
-    alert("Password changed successfully.");
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError("New password and confirm password do not match.");
+      return;
+    }
 
-    setPasswordData({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    });
+    setPasswordError("");
+    try {
+      await changePassword.run({
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      });
+      toast.success("Password changed. Other devices have been signed out.");
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+    } catch (err) {
+      setPasswordError(err.message);
+    }
   };
 
   const formatDate = (date) => {
@@ -125,7 +210,7 @@ function Profile() {
 
         {!isEditing && (
           <button
-            onClick={() => setIsEditing(true)}
+            onClick={startEditing}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
           >
             <Pencil size={17} />
@@ -146,14 +231,14 @@ function Profile() {
             <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-end">
 
               <div className="flex h-24 w-24 items-center justify-center rounded-2xl border-4 border-white bg-slate-700 text-2xl font-bold text-white shadow-lg">
-                {profile.firstName[0]}
-                {profile.lastName[0]}
+                {saved.firstName[0]}
+                {saved.lastName?.[0]}
               </div>
 
               <div className="pb-1">
 
                 <h2 className="text-xl font-bold text-slate-900">
-                  {profile.firstName} {profile.lastName}
+                  {saved.firstName} {saved.lastName}
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-500">
@@ -167,7 +252,7 @@ function Profile() {
             <div className="flex items-center gap-2 pb-1">
 
               <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                Active
+                {profile.status}
               </span>
 
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
@@ -250,7 +335,7 @@ function Profile() {
               name="department"
               value={profile.department}
               onChange={handleProfileChange}
-              disabled={!isEditing}
+              disabled
               icon={<Building2 size={17} />}
             />
 
@@ -259,7 +344,7 @@ function Profile() {
               name="designation"
               value={profile.designation}
               onChange={handleProfileChange}
-              disabled={!isEditing}
+              disabled
               icon={<Briefcase size={17} />}
             />
 
@@ -269,7 +354,7 @@ function Profile() {
               type="date"
               value={profile.joiningDate}
               onChange={handleProfileChange}
-              disabled={!isEditing}
+              disabled
               icon={<CalendarDays size={17} />}
             />
 
@@ -284,12 +369,18 @@ function Profile() {
 
           </div>
 
+          {profileError && (
+            <p role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {profileError}
+            </p>
+          )}
+
           {isEditing && (
             <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
 
               <button
                 type="button"
-                onClick={() => setIsEditing(false)}
+                onClick={cancelEditing}
                 className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Cancel
@@ -297,9 +388,10 @@ function Profile() {
 
               <button
                 type="submit"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+                disabled={saveProfile.pending}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
               >
-                <Save size={17} />
+                {saveProfile.pending ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
                 Save Changes
               </button>
 
@@ -416,13 +508,20 @@ function Profile() {
 
           </div>
 
+          {passwordError && (
+            <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {passwordError}
+            </p>
+          )}
+
           <div className="flex justify-end border-t border-slate-200 pt-5">
 
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+              disabled={changePassword.pending}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
             >
-              <Lock size={17} />
+              {changePassword.pending ? <Loader2 size={17} className="animate-spin" /> : <Lock size={17} />}
               Update Password
             </button>
 

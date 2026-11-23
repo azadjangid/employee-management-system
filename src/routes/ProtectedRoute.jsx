@@ -1,23 +1,28 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
-function ProtectedRoute() {
-  const authData = localStorage.getItem(
-    "employeehub_auth"
-  );
+/**
+ * Requires a signed-in user. Pass `roles` to also restrict by role;
+ * anyone else is sent to the dashboard.
+ */
+function ProtectedRoute({ roles }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
 
-  let isAuthenticated = false;
-
-  try {
-    const parsedData = JSON.parse(authData);
-
-    isAuthenticated =
-      parsedData?.isAuthenticated === true;
-  } catch {
-    isAuthenticated = false;
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-900" />
+      </div>
+    );
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+  if (!user) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (roles && !roles.includes(user.role)) {
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;

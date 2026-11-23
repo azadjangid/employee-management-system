@@ -1,16 +1,52 @@
-# React + Vite
+# EmployeeHub
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Employee management system: employees, departments, attendance, leaves, reimbursements (with receipt uploads), payroll and an audit log, with admin, manager and employee roles.
 
-Currently, two official plugins are available:
+- **Frontend:** React 19 + Vite + Tailwind CSS (this folder)
+- **Backend:** Node.js + Express 5 + PostgreSQL in [`server/`](server/README.md)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Run it locally
 
-## React Compiler
+You need Node.js 20+ and PostgreSQL 14+ (or Docker).
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+# 1. Database
+docker compose up -d            # or: createdb ems
 
-## Expanding the ESLint configuration
+# 2. API (http://localhost:5000)
+cd server
+cp .env.example .env            # set JWT_SECRET; adjust DATABASE_URL if needed
+npm install
+npm run db:reset                # tables + demo data
+npm run dev
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+# 3. Frontend (http://localhost:5173), in another terminal
+cd ..
+npm install
+npm run dev
+```
+
+Vite forwards `/api` to the API, so there is nothing else to configure in development. If the API is on another host in production, build with `VITE_API_URL=https://api.example.com` and set `CORS_ORIGIN` on the server.
+
+## Demo logins
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin | admin@employeehub.com | admin123 |
+| Manager (HR) | sneha.joshi@example.com | password123 |
+| Manager (Sales) | karan.shah@example.com | password123 |
+| Manager (Engineering) | amit.patel@example.com | password123 |
+| Employee | priya.mehta@example.com (and the rest) | password123 |
+
+## Scripts
+
+| Where | Command | What it does |
+| --- | --- | --- |
+| root | `npm run dev` | Frontend dev server |
+| root | `npm run build` | Production build in `dist/` |
+| root | `npm run lint` | ESLint |
+| server | `npm run dev` | API with auto-reload |
+| server | `npm test` | API tests (needs an `ems_test` database) |
+| server | `npm run db:reset` | Recreate tables and demo data |
+
+See [server/README.md](server/README.md) for the API endpoints, roles, payroll rules and production notes.

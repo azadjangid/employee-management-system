@@ -7,12 +7,17 @@ import {
     UserCircle,
     X,
     LogOut,
+    Building2,
+    Banknote,
+    ShieldCheck,
 } from "lucide-react";
 
 import {
     NavLink,
     useNavigate,
 } from "react-router-dom";
+
+import { useAuth, initials, ROLE_LABELS } from "../../context/AuthContext";
 
 const menuItems = [
     {
@@ -24,6 +29,13 @@ const menuItems = [
         name: "Employees",
         path: "/employees",
         icon: Users,
+        roles: ["admin", "manager"],
+    },
+    {
+        name: "Departments",
+        path: "/departments",
+        icon: Building2,
+        roles: ["admin", "manager"],
     },
     {
         name: "Attendance",
@@ -41,6 +53,17 @@ const menuItems = [
         icon: Receipt,
     },
     {
+        name: "Payroll",
+        path: "/payroll",
+        icon: Banknote,
+    },
+    {
+        name: "Audit Logs",
+        path: "/audit-logs",
+        icon: ShieldCheck,
+        roles: ["admin"],
+    },
+    {
         name: "Profile",
         path: "/profile",
         icon: UserCircle,
@@ -49,9 +72,10 @@ const menuItems = [
 
 function Sidebar({ isOpen, onClose }) {
     const navigate = useNavigate();
+    const { user, logout } = useAuth();
 
-    const handleLogout = () => {
-        localStorage.removeItem("employeehub_auth");
+    const handleLogout = async () => {
+        await logout();
 
         navigate("/login", {
             replace: true,
@@ -116,13 +140,15 @@ function Sidebar({ isOpen, onClose }) {
                 </div>
 
                 {/* Navigation */}
-                <nav className="space-y-1 p-4">
+                <nav className="h-[calc(100vh-4rem-9.5rem)] space-y-1 overflow-y-auto p-4">
 
                     <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
                         Main Menu
                     </p>
 
-                    {menuItems.map((item) => {
+                    {menuItems
+                        .filter((item) => !item.roles || item.roles.includes(user?.role))
+                        .map((item) => {
                         const Icon = item.icon;
 
                         return (
@@ -162,18 +188,18 @@ function Sidebar({ isOpen, onClose }) {
 
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100">
                                 <span className="text-sm font-semibold text-blue-600">
-                                    AD
+                                    {initials(user?.name)}
                                 </span>
                             </div>
 
                             <div className="min-w-0">
 
                                 <p className="truncate text-sm font-semibold text-slate-800">
-                                    Admin User
+                                    {user?.name}
                                 </p>
 
                                 <p className="truncate text-xs text-slate-500">
-                                    Administrator
+                                    {ROLE_LABELS[user?.role] || user?.designation}
                                 </p>
 
                             </div>

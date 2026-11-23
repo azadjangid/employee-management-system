@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import {
   Mail,
   Lock,
@@ -7,31 +7,39 @@ import {
   EyeOff,
   LogIn,
   UserCircle,
+  Loader2,
 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+
+const SHOW_DEMO_LOGINS =
+  import.meta.env.DEV || import.meta.env.VITE_SHOW_DEMO_LOGINS === "true";
 
 function Login() {
-  const navigate = useNavigate();
+  const location = useLocation();
+  const { user, login } = useAuth();
 
   const [formData, setFormData] = useState({
     email: "",
     password: "",
+    rememberMe: false,
   });
 
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
 
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: type === "checkbox" ? checked : value,
     }));
 
     setError("");
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!formData.email || !formData.password) {
@@ -39,35 +47,20 @@ function Login() {
       return;
     }
 
-    /*
-      Temporary frontend authentication.
-
-      Later this will be replaced with:
-      POST /api/auth/login
-    */
-
-    if (
-      formData.email === "admin@employeehub.com" &&
-      formData.password === "admin123"
-    ) {
-      localStorage.setItem(
-        "employeehub_auth",
-        JSON.stringify({
-          isAuthenticated: true,
-          user: {
-            name: "Admin User",
-            email: "admin@employeehub.com",
-            role: "Administrator",
-          },
-        })
-      );
-
-      navigate("/");
-      return;
+    setSubmitting(true);
+    try {
+      // On success `user` is set and the redirect below takes over.
+      await login(formData);
+    } catch (err) {
+      setError(err.message);
+      setSubmitting(false);
     }
-
-    setError("Invalid email or password.");
   };
+
+  // Signed in: go back to the page that asked for login (or the dashboard).
+  if (user) {
+    return <Navigate to={location.state?.from?.pathname || "/"} replace />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -246,6 +239,9 @@ function Login() {
 
                     <input
                       type="checkbox"
+                      name="rememberMe"
+                      checked={formData.rememberMe}
+                      onChange={handleChange}
                       className="h-4 w-4 rounded border-slate-300"
                     />
 
@@ -253,27 +249,33 @@ function Login() {
 
                   </label>
 
-                  <button
-                    type="button"
+                  <Link
+                    to="/forgot-password"
                     className="text-sm font-semibold text-slate-900 hover:underline"
                   >
                     Forgot password?
-                  </button>
+                  </Link>
 
                 </div>
 
                 {/* Submit */}
                 <button
                   type="submit"
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  disabled={submitting}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <LogIn size={18} />
-                  Sign In
+                  {submitting ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <LogIn size={18} />
+                  )}
+                  {submitting ? "Signing in..." : "Sign In"}
                 </button>
 
               </form>
 
-              {/* Demo Credentials */}
+              {/* Demo Credentials (development builds, or VITE_SHOW_DEMO_LOGINS=true) */}
+              {SHOW_DEMO_LOGINS && (
               <div className="mt-6 rounded-xl bg-slate-50 p-4">
 
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -296,9 +298,15 @@ function Login() {
                     admin123
                   </p>
 
+                  <p className="pt-1 text-xs text-slate-500">
+                    Manager: sneha.joshi@example.com, employee:
+                    priya.mehta@example.com (password123 for both)
+                  </p>
+
                 </div>
 
               </div>
+              )}
 
             </div>
 
